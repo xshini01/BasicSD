@@ -117,7 +117,7 @@ def generated_imgs(model_id, prompt, negative_prompt, width, height, steps, scal
         image_path = f"output_image_{len(all_images) + 1}.png"
         image.save(image_path)
         all_images.append(image_path)
-        return all_images
+    return all_images
 
 model_id = "John6666/anima-pencil-xl-v5-sdxl"
 lora_id = "xshini/Nakano_Miku_xl"
