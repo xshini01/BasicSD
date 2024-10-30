@@ -9,7 +9,7 @@ from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler, Stab
 from transformers import CLIPTextModel, CLIPTokenizer, AutoTokenizer, AutoModelForCausalLM
 from compel import Compel, ReturnedEmbeddingsType
 
-def load_model(model_id, lora_id, btn_ceck, progress=gr.Progress()):
+def load_model(model_id, lora_id, btn_ceck, progress=gr.Progress(track_tqdm=True)):
     model_id_lower = model_id.lower()
     if "sd-xl" in model_id_lower or "sdxl" in model_id_lower or "xl" in model_id_lower:
         gr.Info("wait a minute the model is loading!")
@@ -94,7 +94,7 @@ if (inputs.trim() !== "") {
 }"""
 
 all_images = []
-def generated_imgs(model_id, prompt, negative_prompt, width, height, steps, scale, clip_skip, num_images,pipe):
+def generated_imgs(model_id, prompt, negative_prompt, width, height, steps, scale, clip_skip, num_images, pipe, progress=gr.Progress(track_tqdm=True)):
     all_images = []
     model_id_lower = model_id.lower()
 
@@ -152,7 +152,7 @@ with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
 
     with gr.Row(show_progress=True, variant="panel" ):
         model_id_input = gr.Dropdown(choices=["stablediffusionapi/abyssorangemix3a1b","Ojimi/anime-kawai-diffusion","Linaqruf/anything-v3-1","circulus/canvers-anime-v3.8.1","redstonehero/cetusmix_v4","DGSpitzer/Cyberpunk-Anime-Diffusion","dreamlike-art/dreamlike-anime-1.0","Lykon/dreamshaper-8","emilianJR/majicMIX_realistic_v6","Meina/MeinaMix_V11","Meina/MeinaPastel_V7","jzli/RealCartoon3D-v11","Meina/MeinaUnreal_V5","redstonehero/xxmix_9realistic_v40","stablediffusionapi/yesmix-v35","Lykon/AAM_AnyLora_AnimeMix","Lykon/AnyLoRA","xshini/pooribumix_V1","John6666/anima-pencil-sdxl","GraydientPlatformAPI/perfectpony-xl","cagliostrolab/animagine-xl-3.1","John6666/anima-pencil-xl-v5-sdxl"],label="Model ID", value=model_id, allow_custom_value=True)
-        lora_id_input = gr.Dropdown(choices=["xshini/KizunaAi","xshini/NakanoMiku","xshini/HiguchiKaede","xshini/tokisaki-Kurumi-XL"],label="LoRA ID", value=lora_id, allow_custom_value=True)
+        lora_id_input = gr.Dropdown(choices=["xshini/KizunaAi","xshini/NakanoMiku","xshini/HiguchiKaede","xshini/tokisaki-Kurumi-XL", "xshini/Nakano_Miku_xl"],label="LoRA ID", value=lora_id, allow_custom_value=True)
         with gr.Column():
             load_model_btn = gr.Button("Load Model", variant="primary", size='lg')
             toggle_dark = gr.Button(value="Toggle Dark", size='lg')
