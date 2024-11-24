@@ -1,13 +1,21 @@
 import gradio as gr
 import time
 import torch
+import getpass
 import matplotlib.pyplot as plt
 from PIL import Image
 from peft import LoraModel, LoraConfig
 from IPython.display import clear_output, display, Javascript, Markdown
-from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionXLPipeline
+from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler, StableDiffusionXLPipeline
 from transformers import CLIPTextModel, CLIPTokenizer, AutoTokenizer, AutoModelForCausalLM
 from compel import Compel, ReturnedEmbeddingsType
+
+clear_output()
+print("Setup Complete")
+
+hf_token = getpass.getpass("Your hugging face token (opsional) :")
+
+#function
 
 def load_model(model_id, lora_id, btn_ceck, progress=gr.Progress(track_tqdm=True)):
     model_id_lower = model_id.lower()
@@ -15,13 +23,15 @@ def load_model(model_id, lora_id, btn_ceck, progress=gr.Progress(track_tqdm=True
         gr.Info("wait a minute the model is loading!")
         progress(0.2, desc="Starting model loading")
         time.sleep(1)
-        pipe = StableDiffusionXLPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
+        pipe = StableDiffusionXLPipeline.from_pretrained(model_id, torch_dtype=torch.float16, token=hf_token if hf_token else None)
     else:
         gr.Info("wait a minute the model is loading!")
         progress(0.2, desc="Starting model loading")
-        pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
+        pipe = StableDiffusionPipeline.from_pretrained(model_id, safety_checker=None, torch_dtype=torch.float16, token=hf_token if hf_token else None)
 
-    pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+    scheduler_args = {"prediction_type": "v_prediction", "rescale_betas_zero_snr": True}
+    pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config, **scheduler_args)
+    pipe.enable_xformers_memory_efficient_attention()
 
     if lora_id:
         try:
@@ -48,7 +58,6 @@ def load_model(model_id, lora_id, btn_ceck, progress=gr.Progress(track_tqdm=True
     if btn_ceck :
         generated_imgs_with_tags = gr.Button(interactive=True)
     return pipe, model_id, lora_id, generate_imgs, generated_imgs_with_tags
-
 
 def generated_imgs_tags(copyright_tags, character_tags, general_tags, rating, aspect_ratio_tags, Length_prompt, pipe):
     MODEL_NAME = "p1atdev/dart-v2-moe-sft"
@@ -85,7 +94,6 @@ def generated_imgs_tags(copyright_tags, character_tags, general_tags, rating, as
 def gradio_copy_text(_text: None):
     gr.Info("Copied!")
 
-
 COPY_ACTION_JS = """\
 (inputs, _outputs) => {
 if (inputs.trim() !== "") {
@@ -94,7 +102,7 @@ if (inputs.trim() !== "") {
 }"""
 
 all_images = []
-def generated_imgs(model_id, prompt, negative_prompt, width, height, steps, scale, clip_skip, num_images, pipe, progress=gr.Progress(track_tqdm=True)):
+def generated_imgs(model_id, prompt, negative_prompt, width, height, steps, scale, clip_skip, num_images,pipe, progress=gr.Progress(track_tqdm=True)):
     all_images = []
     model_id_lower = model_id.lower()
 
@@ -108,7 +116,7 @@ def generated_imgs(model_id, prompt, negative_prompt, width, height, steps, scal
             )
             conditioning, pooled = compel(prompt)
             image = pipe(prompt_embeds=conditioning, pooled_prompt_embeds=pooled, height=height, num_inference_steps=steps, width=width,
-                        negative_prompt=negative_prompt, guidance_scale=scale, clip_skip=clip_skip).images[0]
+                        negative_prompt=negative_prompt, guidance_scale=scale).images[0]
         else:
             compel = Compel(tokenizer=pipe.tokenizer, text_encoder=pipe.text_encoder)
             embeds = compel(prompt)
@@ -119,25 +127,47 @@ def generated_imgs(model_id, prompt, negative_prompt, width, height, steps, scal
         all_images.append(image_path)
     return all_images
 
-model_id = "John6666/anima-pencil-xl-v5-sdxl"
+def update_clip_skip_visibility(model_id):
+    model_id_lower = model_id.lower()
+    if "sd-xl" in model_id_lower or "sdxl" in model_id_lower or "xl" in model_id_lower:
+        return gr.update(visible=False)
+    else:
+        return gr.update(visible=True)
+
+# default value
+model_id = "Laxhar/noobai-XL-Vpred-0.6"
 lora_id = "xshini/Nakano_Miku_xl"
 
 copyright_tags= "Go-Toubun no Hanayome"
 character_tags = "nakano miku"
-general_tags = "1girl, solo"
+general_tags = "masterpiece, best quality, newest, absurdres, highres"
 rating = "general"
 aspect_ratio_tags = "square"
 Length_prompt= "short"
 
-prompt = "1girl, solo, nakano miku, solo, green skirt, headphones around neck, looking at viewer, blush, closed mouth, white shirt, long sleeves, blue cardigan, pleated skirt, black pantyhose"
-negative_prompt = "NSFW, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name,"
+prompt = "masterpiece, best quality, newest, absurdres, highres, 1girl, solo, nakano miku, solo, green skirt, headphones around neck, looking at viewer, blush, closed mouth, white shirt, long sleeves, blue cardigan, pleated skirt, black pantyhose"
+negative_prompt = "nsfw, worst quality, old, early, low quality, lowres, signature, username, logo, bad hands, mutated hands, mammal, anthro, ambiguous form, feral, semi-anthro"
 width = 1024
 height = 1024
-steps = 20
-scale = 7
+steps = 30
+scale = 5
 clip_skip= 2
 num_images = 1
 
+# Choice input
+choices_Models = ["stablediffusionapi/abyssorangemix3a1b","Ojimi/anime-kawai-diffusion","Linaqruf/anything-v3-1","circulus/canvers-anime-v3.8.1",
+                 "redstonehero/cetusmix_v4","DGSpitzer/Cyberpunk-Anime-Diffusion","dreamlike-art/dreamlike-anime-1.0","Lykon/dreamshaper-8",
+                 "emilianJR/majicMIX_realistic_v6","Meina/MeinaMix_V11","Meina/MeinaPastel_V7","jzli/RealCartoon3D-v11","Meina/MeinaUnreal_V5",
+                 "redstonehero/xxmix_9realistic_v40","stablediffusionapi/yesmix-v35","Lykon/AAM_AnyLora_AnimeMix","Lykon/AnyLoRA","xshini/pooribumix_V1",
+                 "John6666/anima-pencil-sdxl","GraydientPlatformAPI/perfectpony-xl","cagliostrolab/animagine-xl-3.1","John6666/anima-pencil-xl-v5-sdxl", "Laxhar/noobai-XL-Vpred-0.6"]
+
+choices_Loras = ["xshini/KizunaAi","xshini/NakanoMiku","xshini/HiguchiKaede","xshini/tokisaki-Kurumi-XL","xshini/Nakano_Miku_xl"]
+
+choices_Ratings =["sfw","general","sensitive"]
+choices_AspectRasio =["ultra_wide","wide","square", "tall", "ultra_tall"]
+choices_LongPrompt= ["very_short","short","medium", "long", "very_long"]
+
+# gradio interface
 with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
     with gr.Row():
         gr.Markdown(
@@ -151,8 +181,8 @@ with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
         )
 
     with gr.Row(show_progress=True, variant="panel" ):
-        model_id_input = gr.Dropdown(choices=["stablediffusionapi/abyssorangemix3a1b","Ojimi/anime-kawai-diffusion","Linaqruf/anything-v3-1","circulus/canvers-anime-v3.8.1","redstonehero/cetusmix_v4","DGSpitzer/Cyberpunk-Anime-Diffusion","dreamlike-art/dreamlike-anime-1.0","Lykon/dreamshaper-8","emilianJR/majicMIX_realistic_v6","Meina/MeinaMix_V11","Meina/MeinaPastel_V7","jzli/RealCartoon3D-v11","Meina/MeinaUnreal_V5","redstonehero/xxmix_9realistic_v40","stablediffusionapi/yesmix-v35","Lykon/AAM_AnyLora_AnimeMix","Lykon/AnyLoRA","xshini/pooribumix_V1","John6666/anima-pencil-sdxl","GraydientPlatformAPI/perfectpony-xl","cagliostrolab/animagine-xl-3.1","John6666/anima-pencil-xl-v5-sdxl"],label="Model ID", value=model_id, allow_custom_value=True)
-        lora_id_input = gr.Dropdown(choices=["xshini/KizunaAi","xshini/NakanoMiku","xshini/HiguchiKaede","xshini/tokisaki-Kurumi-XL", "xshini/Nakano_Miku_xl"],label="LoRA ID", value=lora_id, allow_custom_value=True)
+        model_id_input = gr.Dropdown(choices=choices_Models,label="Model ID", value=model_id, allow_custom_value=True)
+        lora_id_input = gr.Dropdown(choices=choices_Loras,label="LoRA ID", value=lora_id, allow_custom_value=True)
         with gr.Column():
             load_model_btn = gr.Button("Load Model", variant="primary", size='lg')
             toggle_dark = gr.Button(value="Toggle Dark", size='lg')
@@ -171,9 +201,9 @@ with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
             copyright_tags_input = gr.Textbox(label="Copyright Tags", value=copyright_tags, lines=2)
             character_tags_input = gr.Textbox(label="Character Tags", value=character_tags, lines=2)
             general_tags_input = gr.Textbox(label="General Tags", value=general_tags, lines=2)
-            rating_input = gr.Radio(["sfw","general","sensitive"], label="Rating", value=rating)
-            aspect_ratio_tags_input = gr.Radio(["ultra_wide","wide","square", "tall", "ultra_tall"], label="Aspect Ratio", value=aspect_ratio_tags)
-            Length_prompt_input = gr.Radio(["very_short","short","medium", "long", "very_long"], label="Length Prompt", value=Length_prompt)
+            rating_input = gr.Radio(choices_Ratings, label="Rating", value=rating)
+            aspect_ratio_tags_input = gr.Radio(choices_AspectRasio, label="Aspect Ratio", value=aspect_ratio_tags)
+            Length_prompt_input = gr.Radio(choices_LongPrompt, label="Length Prompt", value=Length_prompt)
         with gr.Column(variant ='panel'):
             generated_imgs_tags_btn = gr.Button("Generate Prompt", variant="primary")
             with gr.Group():
@@ -182,19 +212,21 @@ with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
             generated_imgs_with_tags_btn = gr.Button(value="Generate image with this prompt!",variant='primary', interactive=False)
 
             with gr.Accordion(label="Advanced Prompt Images", open=False):
+                model_id_lower = model_id.lower()
                 prompt_input = gr.Textbox(label="Prompt", value=prompt, lines=5)
                 negative_prompt_input = gr.Textbox(label="Negative Prompt", value=negative_prompt, lines=3)
                 width_input = gr.Slider(minimum=256, maximum=2048, step=64, label="Width", value=width)
                 height_input = gr.Slider(minimum=256, maximum=2048, step=64, label="Height", value=height)
                 steps_input = gr.Slider(minimum=1, maximum=50, step=1, label="Steps", value=steps)
                 scale_input = gr.Slider(minimum=1, maximum=20, step=0.5, label="Scale", value=scale)
-                clip_skip_input = gr.Slider(minimum=1, maximum=12, step=1, label="Clip Skip", value=clip_skip)
+                clip_skip_input = gr.Slider(minimum=1, maximum=12, step=1, label="Clip Skip", value=clip_skip, visible=True)
                 num_images_input = gr.Slider(minimum=1, maximum=5, step=1, label="Number of Images", value=num_images)
                 generated_imgs_btn = gr.Button("Generate Images", variant="primary", interactive=False)
             image_output = gr.Gallery(label="Generated Image",show_label=False,columns=[2], rows=[2], object_fit="contain", height="auto")
 
     pipe = gr.State()
     btn_ceck = gr.State()
+    model_id_input.change(update_clip_skip_visibility, inputs=model_id_input, outputs=clip_skip_input)
     load_model_btn.click(load_model, inputs=[model_id_input, lora_id_input, btn_ceck], outputs=[pipe, model_id_input, lora_id_input, generated_imgs_btn, generated_imgs_with_tags_btn])
     generated_imgs_tags_btn.click(generated_imgs_tags, inputs=[copyright_tags_input, character_tags_input, general_tags_input, rating_input, aspect_ratio_tags_input, Length_prompt_input, pipe], outputs=[prompt_output,clipboard_btn, generated_imgs_with_tags_btn, btn_ceck])
     clipboard_btn.click(gradio_copy_text, inputs=prompt_output, js=COPY_ACTION_JS)
@@ -203,6 +235,3 @@ with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
 
 ui.queue()
 ui.launch(share=True, debug=True, inline=False)
-
-if __name__ == "__main__":
-    ui.launch()
