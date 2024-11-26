@@ -13,9 +13,28 @@ from compel import Compel, ReturnedEmbeddingsType
 clear_output()
 print("Setup Complete")
 
-hf_token = getpass.getpass("Your hugging face token (opsional) :")
 
 #function
+
+hf_token = None
+token_set = False
+
+def save_token(token):
+    global hf_token, token_set
+    hf_token = token
+    token_set = True  # Tandai bahwa token telah disimpan
+    masked_token = token[:4] + "*" * (len(token) - 4)
+    if hf_token:
+      return f"Your token: {masked_token}"
+    else:
+      return "continue without token"
+
+def update_clip_skip_visibility(model_id):
+    model_id_lower = model_id.lower()
+    if "sd-xl" in model_id_lower or "sdxl" in model_id_lower or "xl" in model_id_lower:
+        return gr.update(visible=False)
+    else:
+        return gr.update(visible=True)
 
 def load_model(model_id, lora_id, btn_ceck, progress=gr.Progress(track_tqdm=True)):
     model_id_lower = model_id.lower()
@@ -39,20 +58,19 @@ def load_model(model_id, lora_id, btn_ceck, progress=gr.Progress(track_tqdm=True
             progress(0.5, desc="Load LoRA weight")
             pipe.load_lora_weights(lora_id, adapter_name=lora_id)
             pipe.fuse_lora(lora_scale=0.7)
-            clear_output()
             gr.Info(f"Load LoRA {lora_id} Success")
         except Exception as e:
-            clear_output()
             gr.Info(f"LoRA {lora_id} not compatible with model {model_id}")
             gr.Info(f"Use another Lora, if sdxl model use Lora xl")
             gr.Info(f"Load Model without Lora")
     else:
-        clear_output()
+        print(f"without lora")
 
 
     pipe = pipe.to("cuda")
     gr.Info(f"Load Model {model_id} and {lora_id} Success")
     progress(1, desc="Model loaded successfully")
+    clear_output()
     generate_imgs = gr.Button(interactive=True)
     generated_imgs_with_tags = gr.Button()
     if btn_ceck :
@@ -127,13 +145,6 @@ def generated_imgs(model_id, prompt, negative_prompt, width, height, steps, scal
         all_images.append(image_path)
     return all_images
 
-def update_clip_skip_visibility(model_id):
-    model_id_lower = model_id.lower()
-    if "sd-xl" in model_id_lower or "sdxl" in model_id_lower or "xl" in model_id_lower:
-        return gr.update(visible=False)
-    else:
-        return gr.update(visible=True)
-
 # default value
 model_id = "Laxhar/noobai-XL-Vpred-0.6"
 lora_id = "xshini/Nakano_Miku_xl"
@@ -146,7 +157,7 @@ aspect_ratio_tags = "square"
 Length_prompt= "short"
 
 prompt = "masterpiece, best quality, newest, absurdres, highres, 1girl, solo, nakano miku, solo, green skirt, headphones around neck, looking at viewer, blush, closed mouth, white shirt, long sleeves, blue cardigan, pleated skirt, black pantyhose"
-negative_prompt = "nsfw, worst quality, old, early, low quality, lowres, signature, username, logo, bad hands, mutated hands, mammal, anthro, ambiguous form, feral, semi-anthro"
+negative_prompt = "worst quality, old, early, low quality, lowres, signature, username, logo, bad hands, mutated hands, mammal, anthro, ambiguous form, feral, semi-anthro"
 width = 1024
 height = 1024
 steps = 30
@@ -168,6 +179,18 @@ choices_AspectRasio =["ultra_wide","wide","square", "tall", "ultra_tall"]
 choices_LongPrompt= ["very_short","short","medium", "long", "very_long"]
 
 # gradio interface
+
+with gr.Blocks() as token_interface:
+    gr.Markdown("## Hugging Face token")
+    token_input = gr.Textbox(
+        label="input your Hugging Face token (opsional)",
+        placeholder="Enter your token here (opsional)...",
+        type="password"
+    )
+    save_button = gr.Button("Submit", variant="primary")
+    output_label = gr.Label()
+    save_button.click(fn=save_token, inputs=token_input, outputs=output_label)
+
 with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
     with gr.Row():
         gr.Markdown(
@@ -212,7 +235,7 @@ with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
             generated_imgs_with_tags_btn = gr.Button(value="Generate image with this prompt!",variant='primary', interactive=False)
 
             with gr.Accordion(label="Advanced Prompt Images", open=False):
-                model_id_lower = model_id.lower()
+                model_id_lower = model_id_input.value.lower()
                 prompt_input = gr.Textbox(label="Prompt", value=prompt, lines=5)
                 negative_prompt_input = gr.Textbox(label="Negative Prompt", value=negative_prompt, lines=3)
                 width_input = gr.Slider(minimum=256, maximum=2048, step=64, label="Width", value=width)
@@ -220,8 +243,11 @@ with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
                 steps_input = gr.Slider(minimum=1, maximum=50, step=1, label="Steps", value=steps)
                 scale_input = gr.Slider(minimum=1, maximum=20, step=0.5, label="Scale", value=scale)
                 clip_skip_input = gr.Slider(minimum=1, maximum=12, step=1, label="Clip Skip", value=clip_skip, visible=True)
+                if "sd-xl" in model_id_lower or "sdxl" in model_id_lower or "xl" in model_id_lower:
+                    clip_skip_input.visible = False
                 num_images_input = gr.Slider(minimum=1, maximum=5, step=1, label="Number of Images", value=num_images)
                 generated_imgs_btn = gr.Button("Generate Images", variant="primary", interactive=False)
+                if pipe: generated_imgs_btn.interactive=True
             image_output = gr.Gallery(label="Generated Image",show_label=False,columns=[2], rows=[2], object_fit="contain", height="auto")
 
     pipe = gr.State()
@@ -233,5 +259,14 @@ with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
     generated_imgs_with_tags_btn.click(generated_imgs, inputs=[model_id_input, prompt_output, negative_prompt_input, width_input, height_input, steps_input, scale_input, clip_skip_input, num_images_input,pipe], outputs=image_output)
     generated_imgs_btn.click(generated_imgs, inputs=[model_id_input, prompt_input, negative_prompt_input, width_input, height_input, steps_input, scale_input, clip_skip_input, num_images_input,pipe], outputs=image_output)
 
-ui.queue()
-ui.launch(share=True, debug=True, inline=False)
+def main():
+    clear_output()
+    token_interface.launch(share=True, height=350, width="70%")
+    while not token_set:
+        pass
+    time.sleep(2)
+    clear_output()
+    ui.queue()
+    ui.launch(share=True, inline=False, debug=True)
+
+main()
