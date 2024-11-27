@@ -230,7 +230,7 @@ with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
             general_tags_input = gr.Textbox(label="General Tags", value=general_tags, lines=2)
             rating_input = gr.Radio(choices_Ratings, label="Rating", value=rating)
             aspect_ratio_tags_input = gr.Radio(choices_AspectRasio, label="Aspect Ratio", value=aspect_ratio_tags)
-            Length_prompt_input = gr.Radio(choices_LongPrompt, label="Length Prompt", value=Length_prompt)
+            length_prompt_input = gr.Radio(choices_LongPrompt, label="Length Prompt", value=Length_prompt)
         with gr.Column(variant ='panel'):
             generated_imgs_tags_btn = gr.Button("Generate Prompt", variant="primary")
             with gr.Group():
@@ -256,7 +256,7 @@ with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
 
     model_id_input.change(update_clip_skip_visibility, inputs=model_id_input, outputs=clip_skip_input)
     load_model_btn.click(load_model, inputs=[model_id_input, lora_id_input, btn_check], outputs=[pipe, model_id_input, lora_id_input, generated_imgs_btn, generated_imgs_with_tags_btn])
-    generated_imgs_tags_btn.click(generated_imgs_tags, inputs=[copyright_tags_input, character_tags_input, general_tags_input, rating_input, aspect_ratio_tags_input, Length_prompt_input, pipe], outputs=[prompt_output,clipboard_btn, generated_imgs_with_tags_btn, btn_check])
+    generated_imgs_tags_btn.click(generated_imgs_tags, inputs=[copyright_tags_input, character_tags_input, general_tags_input, rating_input, aspect_ratio_tags_input, length_prompt_input, pipe], outputs=[prompt_output,clipboard_btn, generated_imgs_with_tags_btn, btn_check])
     clipboard_btn.click(gradio_copy_text, inputs=prompt_output, js=COPY_ACTION_JS)
     generated_imgs_with_tags_btn.click(generated_imgs, inputs=[model_id_input, prompt_output, negative_prompt_input, width_input, height_input, steps_input, scale_input, clip_skip_input, num_images_input,pipe], outputs=image_output)
     generated_imgs_btn.click(generated_imgs, inputs=[model_id_input, prompt_input, negative_prompt_input, width_input, height_input, steps_input, scale_input, clip_skip_input, num_images_input,pipe], outputs=image_output)
