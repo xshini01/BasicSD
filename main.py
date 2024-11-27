@@ -18,8 +18,6 @@ print("Setup Complete")
 
 hf_token = None
 token_set = False
-pipe = None
-btn_check = None
 
 def save_token(token):
     global hf_token, token_set
@@ -38,8 +36,7 @@ def update_clip_skip_visibility(model_id):
     else:
         return gr.update(visible=True)
 
-def load_model(model_id, lora_id, btn_check, progress=gr.Progress(track_tqdm=True)):
-    global pipe
+def load_model(model_id, lora_id, btn_ceck, progress=gr.Progress(track_tqdm=True)):
     model_id_lower = model_id.lower()
     if "sd-xl" in model_id_lower or "sdxl" in model_id_lower or "xl" in model_id_lower:
         gr.Info("wait a minute the model is loading!")
@@ -76,12 +73,11 @@ def load_model(model_id, lora_id, btn_check, progress=gr.Progress(track_tqdm=Tru
     clear_output()
     generate_imgs = gr.Button(interactive=True)
     generated_imgs_with_tags = gr.Button()
-    if btn_check :
+    if btn_ceck :
         generated_imgs_with_tags = gr.Button(interactive=True)
     return pipe, model_id, lora_id, generate_imgs, generated_imgs_with_tags
 
 def generated_imgs_tags(copyright_tags, character_tags, general_tags, rating, aspect_ratio_tags, Length_prompt, pipe):
-    global btn_check
     MODEL_NAME = "p1atdev/dart-v2-moe-sft"
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.bfloat16)
@@ -108,10 +104,10 @@ def generated_imgs_tags(copyright_tags, character_tags, general_tags, rating, as
     generated_text = ", ".join([tag for tag in tokenizer.batch_decode(outputs[0], skip_special_tokens=True) if tag.strip() != ""])
     copy = gr.Button(interactive=True)
     tags_imgs = gr.Button()
-    btn_check = generated_text
+    btn_ceck = generated_text
     if pipe:
       tags_imgs = gr.Button(interactive=True)
-    return generated_text, copy, tags_imgs, btn_check
+    return generated_text, copy, tags_imgs, btn_ceck
 
 def gradio_copy_text(_text: None):
     gr.Info("Copied!")
@@ -178,7 +174,7 @@ choices_Models = ["stablediffusionapi/abyssorangemix3a1b","Ojimi/anime-kawai-dif
 
 choices_Loras = ["xshini/KizunaAi","xshini/NakanoMiku","xshini/HiguchiKaede","xshini/tokisaki-Kurumi-XL","xshini/Nakano_Miku_xl"]
 
-choices_Ratings =["sfw","general","sensitive"]
+choices_Ratings =["sfw","general","sensitive","nsfw","questionable","explicit"]
 choices_AspectRasio =["ultra_wide","wide","square", "tall", "ultra_tall"]
 choices_LongPrompt= ["very_short","short","medium", "long", "very_long"]
 
@@ -230,7 +226,7 @@ with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
             general_tags_input = gr.Textbox(label="General Tags", value=general_tags, lines=2)
             rating_input = gr.Radio(choices_Ratings, label="Rating", value=rating)
             aspect_ratio_tags_input = gr.Radio(choices_AspectRasio, label="Aspect Ratio", value=aspect_ratio_tags)
-            length_prompt_input = gr.Radio(choices_LongPrompt, label="Length Prompt", value=Length_prompt)
+            Length_prompt_input = gr.Radio(choices_LongPrompt, label="Length Prompt", value=Length_prompt)
         with gr.Column(variant ='panel'):
             generated_imgs_tags_btn = gr.Button("Generate Prompt", variant="primary")
             with gr.Group():
@@ -251,12 +247,13 @@ with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
                     clip_skip_input.visible = False
                 num_images_input = gr.Slider(minimum=1, maximum=5, step=1, label="Number of Images", value=num_images)
                 generated_imgs_btn = gr.Button("Generate Images", variant="primary", interactive=False)
-                if pipe: generated_imgs_btn.interactive=True
             image_output = gr.Gallery(label="Generated Image",show_label=False,columns=[2], rows=[2], object_fit="contain", height="auto")
 
+    btn_ceck = gr.State()
+    pipe = gr.State()
     model_id_input.change(update_clip_skip_visibility, inputs=model_id_input, outputs=clip_skip_input)
-    load_model_btn.click(load_model, inputs=[model_id_input, lora_id_input, btn_check], outputs=[pipe, model_id_input, lora_id_input, generated_imgs_btn, generated_imgs_with_tags_btn])
-    generated_imgs_tags_btn.click(generated_imgs_tags, inputs=[copyright_tags_input, character_tags_input, general_tags_input, rating_input, aspect_ratio_tags_input, length_prompt_input, pipe], outputs=[prompt_output,clipboard_btn, generated_imgs_with_tags_btn, btn_check])
+    load_model_btn.click(load_model, inputs=[model_id_input, lora_id_input, btn_ceck], outputs=[pipe, model_id_input, lora_id_input, generated_imgs_btn, generated_imgs_with_tags_btn])
+    generated_imgs_tags_btn.click(generated_imgs_tags, inputs=[copyright_tags_input, character_tags_input, general_tags_input, rating_input, aspect_ratio_tags_input, Length_prompt_input, pipe], outputs=[prompt_output,clipboard_btn, generated_imgs_with_tags_btn, btn_ceck])
     clipboard_btn.click(gradio_copy_text, inputs=prompt_output, js=COPY_ACTION_JS)
     generated_imgs_with_tags_btn.click(generated_imgs, inputs=[model_id_input, prompt_output, negative_prompt_input, width_input, height_input, steps_input, scale_input, clip_skip_input, num_images_input,pipe], outputs=image_output)
     generated_imgs_btn.click(generated_imgs, inputs=[model_id_input, prompt_input, negative_prompt_input, width_input, height_input, steps_input, scale_input, clip_skip_input, num_images_input,pipe], outputs=image_output)
