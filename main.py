@@ -18,6 +18,8 @@ print("Setup Complete")
 
 hf_token = None
 token_set = False
+pipe = None
+btn_check = None
 
 def save_token(token):
     global hf_token, token_set
@@ -36,7 +38,8 @@ def update_clip_skip_visibility(model_id):
     else:
         return gr.update(visible=True)
 
-def load_model(model_id, lora_id, btn_ceck, progress=gr.Progress(track_tqdm=True)):
+def load_model(model_id, lora_id, btn_check, progress=gr.Progress(track_tqdm=True)):
+    global pipe
     model_id_lower = model_id.lower()
     if "sd-xl" in model_id_lower or "sdxl" in model_id_lower or "xl" in model_id_lower:
         gr.Info("wait a minute the model is loading!")
@@ -73,11 +76,12 @@ def load_model(model_id, lora_id, btn_ceck, progress=gr.Progress(track_tqdm=True
     clear_output()
     generate_imgs = gr.Button(interactive=True)
     generated_imgs_with_tags = gr.Button()
-    if btn_ceck :
+    if btn_check :
         generated_imgs_with_tags = gr.Button(interactive=True)
     return pipe, model_id, lora_id, generate_imgs, generated_imgs_with_tags
 
 def generated_imgs_tags(copyright_tags, character_tags, general_tags, rating, aspect_ratio_tags, Length_prompt, pipe):
+    global btn_check
     MODEL_NAME = "p1atdev/dart-v2-moe-sft"
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.bfloat16)
@@ -104,10 +108,10 @@ def generated_imgs_tags(copyright_tags, character_tags, general_tags, rating, as
     generated_text = ", ".join([tag for tag in tokenizer.batch_decode(outputs[0], skip_special_tokens=True) if tag.strip() != ""])
     copy = gr.Button(interactive=True)
     tags_imgs = gr.Button()
-    btn_ceck = generated_text
+    btn_check = generated_text
     if pipe:
       tags_imgs = gr.Button(interactive=True)
-    return generated_text, copy, tags_imgs, btn_ceck
+    return generated_text, copy, tags_imgs, btn_check
 
 def gradio_copy_text(_text: None):
     gr.Info("Copied!")
@@ -250,11 +254,9 @@ with gr.Blocks(theme='JohnSmith9982/small_and_pretty') as ui:
                 if pipe: generated_imgs_btn.interactive=True
             image_output = gr.Gallery(label="Generated Image",show_label=False,columns=[2], rows=[2], object_fit="contain", height="auto")
 
-    pipe = gr.State()
-    btn_ceck = gr.State()
     model_id_input.change(update_clip_skip_visibility, inputs=model_id_input, outputs=clip_skip_input)
-    load_model_btn.click(load_model, inputs=[model_id_input, lora_id_input, btn_ceck], outputs=[pipe, model_id_input, lora_id_input, generated_imgs_btn, generated_imgs_with_tags_btn])
-    generated_imgs_tags_btn.click(generated_imgs_tags, inputs=[copyright_tags_input, character_tags_input, general_tags_input, rating_input, aspect_ratio_tags_input, Length_prompt_input, pipe], outputs=[prompt_output,clipboard_btn, generated_imgs_with_tags_btn, btn_ceck])
+    load_model_btn.click(load_model, inputs=[model_id_input, lora_id_input, btn_check], outputs=[pipe, model_id_input, lora_id_input, generated_imgs_btn, generated_imgs_with_tags_btn])
+    generated_imgs_tags_btn.click(generated_imgs_tags, inputs=[copyright_tags_input, character_tags_input, general_tags_input, rating_input, aspect_ratio_tags_input, Length_prompt_input, pipe], outputs=[prompt_output,clipboard_btn, generated_imgs_with_tags_btn, btn_check])
     clipboard_btn.click(gradio_copy_text, inputs=prompt_output, js=COPY_ACTION_JS)
     generated_imgs_with_tags_btn.click(generated_imgs, inputs=[model_id_input, prompt_output, negative_prompt_input, width_input, height_input, steps_input, scale_input, clip_skip_input, num_images_input,pipe], outputs=image_output)
     generated_imgs_btn.click(generated_imgs, inputs=[model_id_input, prompt_input, negative_prompt_input, width_input, height_input, steps_input, scale_input, clip_skip_input, num_images_input,pipe], outputs=image_output)
